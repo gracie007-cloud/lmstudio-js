@@ -205,7 +205,7 @@ export const globalConfigSchematics = new KVConfigSchematicsBuilder(kvValueTypes
           .field(
             "presencePenalty",
             "checkboxNumeric",
-            { precision: 2 },
+            { step: 0.01, precision: 2 },
             { checked: false, value: 0.0 },
           )
           .field(
@@ -293,6 +293,7 @@ export const globalConfigSchematics = new KVConfigSchematicsBuilder(kvValueTypes
           .field("keepModelInMemory", "boolean", {}, true)
           .field("useFp16ForKVCache", "boolean", {}, true)
           .field("tryMmap", "boolean", {}, true)
+          .field("tryDirectIO", "boolean", {}, false)
           .field(
             "kCacheQuantizationType",
             "llamaCacheQuantizationType",

@@ -47,6 +47,16 @@ export interface BaseLoadModelOpts<TLoadModelConfig> {
   config?: TLoadModelConfig;
 
   /**
+   * If provided, restricts model resolution to a specific device.
+   *
+   * - Use a device identifier string to target a specific remote device.
+   * - Use null to force local-only resolution.
+   * - Omit to use the default cascading behavior, considering the preferred device, local device,
+   *   and remote devices in order.
+   */
+  deviceIdentifier?: string | null;
+
+  /**
    * An `AbortSignal` to cancel the model loading. This is useful if you wish to add a functionality
    * to cancel the model loading.
    *
@@ -106,12 +116,45 @@ function makeLoadModelOptsSchema<TLoadModelConfig>(
   return z.object({
     identifier: z.string().optional(),
     config: loadModelConfigSchema.optional(),
+    deviceIdentifier: z.string().nullable().optional(),
     signal: z.instanceof(AbortSignal).optional(),
     ttl: z.number().optional(),
     verbose: z.union([z.boolean(), logLevelSchema]).optional(),
     onProgress: z.function().optional(),
   });
 }
+
+/** @public */
+export interface EstimatedResourcesUsageOpts {
+  /**
+   * Restrict the estimation to a specific device.
+   *
+   * - Use a device identifier string to target a specific remote device.
+   * - Use null to force local-only estimation.
+   * - Omit to use the default cascading behavior, considering the preferred device, local device,
+   *   and remote devices in order.
+   */
+  deviceIdentifier?: string | null;
+}
+const estimatedResourcesUsageOptsSchema = z.object({
+  deviceIdentifier: z.string().nullable().optional(),
+}) as Zod.Schema<EstimatedResourcesUsageOpts>;
+
+/** @public */
+export interface ModelNamespaceUnloadOpts {
+  /**
+   * Restrict unloading to a specific device.
+   *
+   * - Use a device identifier string to target a specific remote device.
+   * - Use null to force local-only unloading.
+   * - Omit to use the default cascading behavior, considering the preferred device, local device,
+   *   and remote devices in order.
+   */
+  deviceIdentifier?: string | null;
+}
+const modelNamespaceUnloadOptsSchema = z.object({
+  deviceIdentifier: z.string().nullable().optional(),
+}) as Zod.Schema<ModelNamespaceUnloadOpts>;
 
 /**
  * Abstract namespace for namespaces that deal with models.
@@ -221,7 +264,7 @@ export abstract class ModelNamespace<
       [modelKey, opts],
       stack,
     );
-    const { identifier, signal, verbose = "info", config, onProgress } = opts;
+    const { identifier, signal, verbose = "info", config, onProgress, deviceIdentifier } = opts;
     let lastVerboseCallTime = 0;
 
     const { promise, resolve, reject } = makePromise<TSpecificModel>();
@@ -245,6 +288,7 @@ export abstract class ModelNamespace<
       {
         modelKey,
         identifier,
+        deviceIdentifier,
         ttlMs: opts.ttl === undefined ? undefined : opts.ttl * 1000,
         loadConfigStack: singleLayerKVConfigStackOf(
           "apiOverride",
@@ -337,17 +381,25 @@ export abstract class ModelNamespace<
    *
    * @param identifier - The identifier of the model to unload.
    */
-  public unload(identifier: string) {
+  public unload(identifier: string, opts?: ModelNamespaceUnloadOpts) {
     const stack = getCurrentStack(1);
-    this.validator.validateMethodParamOrThrow(
+    const [validatedIdentifier, validatedOpts] = this.validator.validateMethodParamsOrThrow(
       `client.${this.namespace}`,
       "unload",
-      "identifier",
-      reasonableKeyStringSchema,
-      identifier,
+      ["identifier", "opts"],
+      [reasonableKeyStringSchema, modelNamespaceUnloadOptsSchema.optional()],
+      [identifier, opts],
       stack,
     );
-    return this.port.callRpc("unloadModel", { identifier }, { stack });
+    const resolvedOpts = validatedOpts ?? {};
+    return this.port.callRpc(
+      "unloadModel",
+      {
+        identifier: validatedIdentifier,
+        deviceIdentifier: resolvedOpts.deviceIdentifier,
+      },
+      { stack },
+    );
   }
 
   /**
@@ -575,7 +627,7 @@ export abstract class ModelNamespace<
       [modelKey, opts],
       stack,
     );
-    const { identifier, signal, verbose = "info", config, onProgress } = opts;
+    const { identifier, signal, verbose = "info", config, onProgress, deviceIdentifier } = opts;
 
     if (identifier !== undefined) {
       throw new Error("The identifier option is not allowed when using `.model`.");
@@ -591,6 +643,7 @@ export abstract class ModelNamespace<
       "getOrLoad",
       {
         identifier: modelKey,
+        deviceIdentifier,
         loadTtlMs: opts.ttl === undefined ? undefined : opts.ttl * 1000,
         loadConfigStack: singleLayerKVConfigStackOf(
           "apiOverride",
@@ -698,24 +751,32 @@ export abstract class ModelNamespace<
   public async estimateResourcesUsage(
     modelKey: string,
     loadConfig: TLoadModelConfig,
+    opts?: { deviceIdentifier?: string | null },
   ): Promise<EstimatedResourcesUsage> {
     const stack = getCurrentStack(1);
-    [modelKey, loadConfig] = this.validator.validateMethodParamsOrThrow(
-      `client.${this.namespace}`,
-      "estimateUsage",
-      ["modelKey", "loadConfig"],
-      [reasonableKeyStringSchema, this.loadModelConfigSchema],
-      [modelKey, loadConfig],
-      stack,
-    );
+    const [validatedModelKey, validatedLoadConfig, validatedOpts] =
+      this.validator.validateMethodParamsOrThrow(
+        `client.${this.namespace}`,
+        "estimateUsage",
+        ["modelKey", "loadConfig", "opts"],
+        [
+          reasonableKeyStringSchema,
+          this.loadModelConfigSchema,
+          estimatedResourcesUsageOptsSchema.optional(),
+        ],
+        [modelKey, loadConfig, opts],
+        stack,
+      );
+    const resolvedOpts = validatedOpts ?? {};
     return await this.port.callRpc(
       "estimateModelUsage",
       {
-        modelKey,
+        modelKey: validatedModelKey,
         loadConfigStack: singleLayerKVConfigStackOf(
           "apiOverride",
-          this.loadConfigToKVConfig(loadConfig),
+          this.loadConfigToKVConfig(validatedLoadConfig),
         ),
+        deviceIdentifier: resolvedOpts.deviceIdentifier,
       },
       { stack },
     );

@@ -168,6 +168,15 @@ export interface LLMPredictionConfigInput<TStructuredOutputType = unknown> {
    */
   repeatPenalty?: number | false;
   /**
+   * Applies a penalty to tokens that have already appeared in the response.
+   *
+   * A value of 0 means no penalty. Higher values increase the penalty, which can encourage the
+   * model to introduce new tokens instead of reusing previously used tokens.
+   *
+   * Set to false to disable this penalty.
+   */
+  presencePenalty?: number | false;
+  /**
    * Sets a minimum probability threshold that a token must meet to be considered for generation.
    *
    * For example, if set to 0.05, any token with less than 5% probability will be excluded from
@@ -305,7 +314,7 @@ export interface LLMPredictionConfigInput<TStructuredOutputType = unknown> {
   userMaxImageDimensionPixels?: number | false;
   /**
    * Whether to respect the model's preferred max image dimension when resizing images. See
-   * {@link userMaxImageDimensionPixels} for more info.
+   * {@link LLMPredictionConfigInput.userMaxImageDimensionPixels} for more info.
    *
    * @experimental [EXP-IMAGE-RESIZE] Image resize settings are experimental and may change in the
    * future.
@@ -332,6 +341,7 @@ export const llmPredictionConfigInputSchema = z.object({
   toolNaming: toolNamingSchema.optional(),
   topKSampling: z.number().optional(),
   repeatPenalty: z.number().optional().or(z.literal(false)),
+  presencePenalty: z.number().optional().or(z.literal(false)),
   minPSampling: z.number().optional().or(z.literal(false)),
   topPSampling: z.number().optional().or(z.literal(false)),
   cpuThreads: z.number().int().optional(),

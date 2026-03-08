@@ -96,7 +96,12 @@ export const llmLlamaCacheQuantizationTypeSchema = z.enum(llmLlamaCacheQuantizat
 
 // MLX KV cache quantization
 export const llmMlxKvCacheBitsTypes = [8, 6, 4, 3, 2] as const;
-export type LLMMlxKvCacheBitsType = (typeof llmMlxKvCacheBitsTypes)[number];
+/**
+ * Allowed bit widths for MLX KV cache quantization.
+ *
+ * @public
+ */
+export type LLMMlxKvCacheBitsType = 8 | 6 | 4 | 3 | 2;
 export const llmMlxKvCacheBitsTypeSchema = z.union([
   z.literal(8),
   z.literal(6),
@@ -105,12 +110,22 @@ export const llmMlxKvCacheBitsTypeSchema = z.union([
   z.literal(2),
 ]);
 export const llmMlxKvCacheGroupSizeTypes = [32, 64, 128] as const;
-export type LLMMlxKvCacheGroupSizeType = (typeof llmMlxKvCacheGroupSizeTypes)[number];
+/**
+ * Allowed group sizes for MLX KV cache quantization.
+ *
+ * @public
+ */
+export type LLMMlxKvCacheGroupSizeType = 32 | 64 | 128;
 export const llmMlxKvCacheGroupSizeTypesSchema = z.union([
   z.literal(32),
   z.literal(64),
   z.literal(128),
 ]);
+/**
+ * Quantization settings for MLX KV cache.
+ *
+ * @public
+ */
 export type LLMMlxKvCacheQuantization = {
   enabled: boolean;
   bits: LLMMlxKvCacheBitsType;
@@ -255,6 +270,15 @@ export interface LLMLoadModelConfig {
   tryMmap?: boolean;
 
   /**
+   * Attempts to use direct I/O (O_DIRECT) to read model files, bypassing the OS page cache.
+   *
+   * Direct I/O transfers data straight between disk and application memory without copying through
+   * the kernel's page cache. This may improve load performance on certain hardware devices. Even
+   * when enabled, direct I/O may not be used if the platform or OS does not support it.
+   */
+  tryDirectIO?: boolean;
+
+  /**
    * Specifies the number of experts to use for models with Mixture of Experts (MoE) architecture.
    *
    * MoE models contain multiple "expert" networks that specialize in different aspects of the task.
@@ -323,6 +347,7 @@ export const llmLoadModelConfigSchema = z.object({
   seed: z.number().int().or(z.literal(false)).optional(),
   useFp16ForKVCache: z.boolean().optional(),
   tryMmap: z.boolean().optional(),
+  tryDirectIO: z.boolean().optional(),
   numExperts: z.number().int().optional(),
   llamaKCacheQuantizationType: z
     .enum(llmLlamaCacheQuantizationTypes)
